@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="GB18030"?>
+<datatransport>
+<director name="director" desc="组播1">
+ <plugin>dtmulticastplugin</plugin>
+ <mcaddress>236.237.238.239</mcaddress>
+ <mcport>36789</mcport>
+ <loopbackvalue>1</loopbackvalue>
+</director>
+<transport name="udpclient1" desc="UDP客户端1">
+ <plugin>dtudpclientplugin</plugin>
+ <selfport>12345</selfport>
+ <peeraddress>192.168.1.123</peeraddress>
+ <peerport>12345</peerport>
+</transport>
+<transport name="tcpclient1" desc="TCP客户端1">
+ <plugin>dttcpclientplugin</plugin>
+ <peeraddress>192.168.1.123</peeraddress>
+ <peerport>33333</peerport>
+</transport>
+<transport name="tcpserver1" desc="TCP服务端1">
+ <plugin>dttcpserverplugin</plugin>
+ <selfport>11111</selfport>
+</transport>
+</datatransport>

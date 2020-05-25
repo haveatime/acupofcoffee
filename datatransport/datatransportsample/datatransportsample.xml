@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="GB18030"?>
+<datatransport>
+<transport name="multicast1" desc="组播1">
+ <plugin>dtmulticastplugin</plugin>
+ <mcaddress>236.237.238.239</mcaddress>
+ <mcport>36789</mcport>
+</transport>
+<transport name="udpclient1" desc="UDP客户端1">
+ <plugin>dtudpclientplugin</plugin>
+ <selfaddress>0.0.0.0</selfaddress>
+ <selfport>12345</selfport>
+ <peeraddress>192.168.1.123</peeraddress>
+ <peerport>12345</peerport>
+</transport>
+<transport name="tcpclient1" desc="TCP客户端1">
+ <plugin>dttcpclientplugin</plugin>
+ <selfaddress>0.0.0.0</selfaddress>
+ <selfport>33333</selfport>
+ <peeraddress>192.168.1.123</peeraddress>
+ <peerport>33333</peerport>
+</transport>
+<transport name="tcpserver1" desc="TCP服务端1">
+ <plugin>dttcpserverplugin</plugin>
+ <selfport>11111</selfport>
+ <peeraddress>192.168.1.179</peeraddress>
+</transport>
+<transport name="serial1" desc="串口1">
+ <plugin>dtserialportplugin</plugin>
+ <portname>COM1</portname>
+ <baudrate>9600</baudrate>
+ <databits>8</databits>
+ <stopbits>1</stopbits>
+ <patiry>no</patiry>
+</transport>
+<transport name="sslcliet1" desc="SSL客户1">
+ <plugin>dtsslclientplugin</plugin>
+ <cafilename>sslclient1ca.pem</cafilename>
+ <peeraddress>192.168.1.199</peeraddress>
+ <peerport>443</peerport>
+ <debug>1</debug>
+</transport>
+<transport name="sslserver1" desc="SSL服务1">
+ <plugin>dtsslserverplugin</plugin>
+ <keyfilename>sslserver1key.pem</keyfilename>
+ <certfilename>sslserver1cert.cer</certfilename>
+ <selfport>443</selfport>
+ <debug>1</debug>
+</transport>
+</datatransport>
