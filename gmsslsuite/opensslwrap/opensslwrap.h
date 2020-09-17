@@ -14,6 +14,9 @@
 
 class OPENSSL_WRAP_DECL OpensslWrap
 {
+	static bool signature_compute_id_digest_from_pubkey( int curve_nid, const std::string pubkey, const std::string idname, std::string &id_digest, const char *debug_flag );
+	static bool signature_compute_id_digest_from_privkey( int curve_nid, const std::string privkey, const std::string idname, std::string &id_digest, const char *debug_flag );
+
 	public:
 
 	/* ∂‘≥∆º”√‹À„∑® */

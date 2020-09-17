@@ -4,6 +4,7 @@
 #include <openssl/ec.h>
 #include <openssl/bn.h>
 #include <openssl/pem.h>
+#include <openssl/sm2.h>
 
 #include "opensslwrap.h"
 
@@ -535,6 +536,126 @@ bool OpensslWrap::generate_pubkey_openssl_asymmetric( int curve_nid, const QByte
 	return true;	
 }
 
+bool OpensslWrap::signature_compute_id_digest_from_pubkey( int curve_nid, const std::string pubkey, const std::string idname, std::string &id_digest, const char *debug_flag )
+{
+	int ret;
+
+	unsigned char *idname_data = (unsigned char *)idname.c_str();
+	int idname_len = idname.size();
+	unsigned char *pubkey_data = (unsigned char *)pubkey.c_str();
+	int pubkey_len = pubkey.size();
+
+	unsigned char outbuf[1024];
+	unsigned int outlen=1024;
+
+	BIGNUM *pubbignum = BN_new();
+	if( NULL == pubbignum )
+	{
+		printf("signature_compute_id_digest_from_pubkey BN_new error!\n");
+		return false;
+	}
+
+	const BIGNUM *pubbignumret = BN_bin2bn((const unsigned char *)pubkey_data, pubkey_len, pubbignum);
+	if( NULL == pubbignumret )
+	{
+		printf("signature_compute_id_digest_from_pubkey BN_bin2bn error!\n");
+		BN_free( pubbignum );
+		return false;
+	}
+
+	EC_GROUP *group = EC_GROUP_new_by_curve_name(curve_nid);
+	if( NULL == group )
+	{
+		printf("signature_compute_id_digest_from_pubkey EC_GROUP_new_by_curve_name error!\n");
+		BN_free( pubbignum );
+		return false;
+	}
+
+	EC_POINT *pecpoint = EC_POINT_new(group);
+	if( NULL == pecpoint )
+	{
+		printf("signature_compute_id_digest_from_pubkey EC_POINT_new error!\n");
+		BN_free( pubbignum );
+		EC_GROUP_free( group );
+		return false;
+	}
+
+	const EC_POINT *pecpointret = EC_POINT_bn2point(group,pubbignum,pecpoint,NULL);
+	if( NULL == pecpointret )
+	{
+		printf("signature_compute_id_digest_from_pubkey EC_POINT_bn2point error!\n");
+		BN_free( pubbignum );
+		EC_GROUP_free( group );
+		EC_POINT_free( pecpoint );
+		return false;
+	}
+
+	EC_KEY *peckey = EC_KEY_new_by_curve_name(curve_nid);
+	if( NULL == peckey )
+	{
+		printf("signature_compute_id_digest_from_pubkey EC_KEY_new_by_curve_name error!\n");
+		BN_free( pubbignum );
+		EC_GROUP_free( group );
+		EC_POINT_free( pecpoint );
+		return false;
+	}
+
+	ret = EC_KEY_set_public_key(peckey, pecpoint);
+	if( 0 == ret )
+	{
+		printf("signature_compute_id_digest_from_pubkey EC_KEY_set_public_key error!\n");
+		BN_free( pubbignum );
+		EC_GROUP_free( group );
+		EC_POINT_free( pecpoint );
+		EC_KEY_free( peckey );
+		return false;
+	}
+
+	const EVP_MD *md = EVP_sm3();
+	if( NULL == md )
+	{
+		printf("signature_compute_id_digest_from_pubkey EVP_sm3 error!\n");
+		BN_free( pubbignum );
+		EC_GROUP_free( group );
+		EC_POINT_free( pecpoint );
+		EC_KEY_free( peckey );
+		return false;
+	}
+
+	size_t tmplen = outlen;
+	ret = SM2_compute_id_digest( md, (char *)idname_data, idname_len,	outbuf, &tmplen, peckey);
+	if( 0 == ret )
+	{
+		printf("signature_compute_id_digest_from_pubkey SM2_compute_id_digest error!\n");
+		BN_free( pubbignum );
+		EC_GROUP_free( group );
+		EC_POINT_free( pecpoint );
+		EC_KEY_free( peckey );
+		return false;
+	}
+
+	outlen = tmplen;
+	id_digest = std::string((const char *)outbuf,outlen);
+
+	return true;
+}
+
+bool OpensslWrap::signature_compute_id_digest_from_privkey (int curve_nid, const std::string privkey, const std::string idname, std::string &id_digest, const char *debug_flag )
+{
+	bool ifpubok;
+
+	QByteArray privkeyarray = QByteArray::fromStdString(privkey);
+	QByteArray pubkeyarray;
+	ifpubok = generate_pubkey_openssl_asymmetric(curve_nid, privkeyarray, pubkeyarray, debug_flag);
+	if( !ifpubok )
+	{
+		printf("signature_compute_id_digest_from_privkey generate_pubkey_gmsm2 error!\n");
+		return false;
+	}
+
+	return signature_compute_id_digest_from_pubkey(curve_nid,pubkeyarray.toStdString(), idname, id_digest, debug_flag);
+}
+
 bool OpensslWrap::signature_message_openssl_asymmetric( int curve_nid, const EVP_MD *md, const QByteArray msg_text, const QByteArray privkey, const QByteArray idname, QByteArray &sig_result, const char *debug_flag )
 {
 	int ret;
@@ -544,6 +665,20 @@ bool OpensslWrap::signature_message_openssl_asymmetric( int curve_nid, const EVP
 		qDebug() << endl << "signature_message_openssl_asymmetric msg_text=" << endl << msg_text.toHex() << endl;
 		qDebug() << endl << "signature_message_openssl_asymmetric privkey=" << endl << privkey.toHex() << endl;
 		qDebug() << endl << "signature_message_openssl_asymmetric idname=" << endl << idname.toHex() << endl;
+	}
+
+	std::string id_digest;
+	unsigned char *idname_data = (unsigned char *)idname.data();
+	int idname_len = idname.size();
+	if( idname_len > 0 )
+	{
+		bool ifidok;
+		ifidok = signature_compute_id_digest_from_privkey( curve_nid, privkey.toStdString(), idname.toStdString(), id_digest, debug_flag );
+		if( !ifidok )
+		{
+			printf("signature_message_openssl_asymmetric signature_compute_id_digest_from_privkey error!\n");
+			return false;
+		}
 	}
 
 	unsigned char *msg_text_data = (unsigned char *)msg_text.data();
@@ -638,6 +773,23 @@ bool OpensslWrap::signature_message_openssl_asymmetric( int curve_nid, const EVP
 		return false;
 	}
 
+	if( idname_len > 0 )
+	{
+		unsigned char *id_digest_data = (unsigned char *)id_digest.c_str();
+		int id_digest_len = id_digest.size();
+
+		ret = EVP_SignUpdate(ctx,id_digest_data,id_digest_len);
+		if( 0 == ret )
+		{
+			printf("signature_message_openssl_asymmetric EVP_SignUpdate ret=%d error!\n",ret);
+			BN_free( privbignum );
+			EC_KEY_free( peckey );
+			EVP_PKEY_free(pevppkey);
+			EVP_MD_CTX_free(ctx);
+			return false;
+		}
+	}
+
 	ret = EVP_SignUpdate(ctx,msg_text_data,msg_text_len);
 	if( 0 == ret )
 	{
@@ -685,6 +837,20 @@ bool OpensslWrap::verify_signature_openssl_asymmetric( int curve_nid, const EVP_
 		qDebug() << endl << "verify_signature_openssl_asymmetric sig_text=" << endl << sig_text.toHex() << endl;
 		qDebug() << endl << "verify_signature_openssl_asymmetric pubkey=" << endl << pubkey.toHex() << endl;
 		qDebug() << endl << "verify_signature_openssl_asymmetric idname=" << endl << idname.toHex() << endl;
+	}
+
+	std::string id_digest;
+	unsigned char *idname_data = (unsigned char *)idname.data();
+	int idname_len = idname.size();
+	if( idname_len > 0 )
+	{
+		bool ifidok;
+		ifidok = signature_compute_id_digest_from_pubkey( curve_nid, pubkey.toStdString(), idname.toStdString(), id_digest, debug_flag );
+		if( !ifidok )
+		{
+			printf("verify_signature_openssl_asymmetric signature_compute_id_digest_from_pubkey error!\n");
+			return false;
+		}
 	}
 
 	unsigned char *pubkey_data = (unsigned char *)pubkey.data();
@@ -832,6 +998,25 @@ bool OpensslWrap::verify_signature_openssl_asymmetric( int curve_nid, const EVP_
 		EVP_PKEY_free(pevppkey);
 		EVP_MD_CTX_free(ctx);
 		return false;
+	}
+
+	if( idname_len > 0 )
+	{
+		unsigned char *id_digest_data = (unsigned char *)id_digest.c_str();
+		int id_digest_len = id_digest.size();
+
+		ret = EVP_VerifyUpdate(ctx,id_digest_data,id_digest_len);
+		if( 0 == ret )
+		{
+			printf("verify_signature_openssl_asymmetric EVP_VerifyUpdate ret=%d error!\n",ret);
+			BN_free( pubbignum );
+			EC_GROUP_free( group );
+			EC_POINT_free( pecpoint );
+			EC_KEY_free( peckey );
+			EVP_PKEY_free(pevppkey);
+			EVP_MD_CTX_free(ctx);
+			return false;
+		}
 	}
 
 	ret = EVP_VerifyUpdate(ctx,msg_text_data,msg_text_len);
