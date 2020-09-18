@@ -121,7 +121,7 @@ bool GmsslWrap::signature_message_gmsm2( const QByteArray msg_text, const QByteA
 
 	const EVP_MD *md = EVP_sm3();
 
-	return OpensslWrap::signature_message_openssl_asymmetric( NID_sm2p256v1, md, msg_text, privkey, idname, sig_result, debug_flag );
+	return OpensslWrap::signature_message_openssl_asymmetric(NID_sm2p256v1, md, msg_text, privkey, idname, &SM2_compute_id_digest, sig_result, debug_flag);
 }
 
 bool GmsslWrap::verify_signature_gmsm2( const QByteArray msg_text, const QByteArray sig_text, const QByteArray pubkey, const QByteArray idname )
@@ -130,7 +130,7 @@ bool GmsslWrap::verify_signature_gmsm2( const QByteArray msg_text, const QByteAr
 
 	const EVP_MD *md = EVP_sm3();
 
-	return OpensslWrap::verify_signature_openssl_asymmetric( NID_sm2p256v1, md, msg_text, sig_text, pubkey, idname, debug_flag );
+	return OpensslWrap::verify_signature_openssl_asymmetric(NID_sm2p256v1, md, msg_text, sig_text, pubkey, idname, &SM2_compute_id_digest, debug_flag);
 }
 
 static bool encode_decode_set_param_gmsm2( EVP_PKEY_CTX *ctx )

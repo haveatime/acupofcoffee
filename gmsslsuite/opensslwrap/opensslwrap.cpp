@@ -4,7 +4,6 @@
 #include <openssl/ec.h>
 #include <openssl/bn.h>
 #include <openssl/pem.h>
-#include <openssl/sm2.h>
 
 #include "opensslwrap.h"
 
@@ -536,13 +535,13 @@ bool OpensslWrap::generate_pubkey_openssl_asymmetric( int curve_nid, const QByte
 	return true;	
 }
 
-bool OpensslWrap::signature_compute_id_digest_from_pubkey( int curve_nid, const std::string pubkey, const std::string idname, std::string &id_digest, const char *debug_flag )
+bool OpensslWrap::signature_compute_id_digest_from_pubkey(int curve_nid, const QByteArray pubkey, const QByteArray idname, int(*compute_id_digest)(const EVP_MD *, const char *, size_t, unsigned char *, size_t *, EC_KEY *), QByteArray &id_digest, const char *debug_flag)
 {
 	int ret;
 
-	unsigned char *idname_data = (unsigned char *)idname.c_str();
+	unsigned char *idname_data = (unsigned char *)idname.data();
 	int idname_len = idname.size();
-	unsigned char *pubkey_data = (unsigned char *)pubkey.c_str();
+	unsigned char *pubkey_data = (unsigned char *)pubkey.data();
 	int pubkey_len = pubkey.size();
 
 	unsigned char outbuf[1024];
@@ -623,7 +622,7 @@ bool OpensslWrap::signature_compute_id_digest_from_pubkey( int curve_nid, const 
 	}
 
 	size_t tmplen = outlen;
-	ret = SM2_compute_id_digest( md, (char *)idname_data, idname_len,	outbuf, &tmplen, peckey);
+	ret = (*compute_id_digest)(md, (char *)idname_data, idname_len, outbuf, &tmplen, peckey);
 	if( 0 == ret )
 	{
 		printf("signature_compute_id_digest_from_pubkey SM2_compute_id_digest error!\n");
@@ -635,28 +634,27 @@ bool OpensslWrap::signature_compute_id_digest_from_pubkey( int curve_nid, const 
 	}
 
 	outlen = tmplen;
-	id_digest = std::string((const char *)outbuf,outlen);
+	id_digest = QByteArray((const char *)outbuf,outlen);
 
 	return true;
 }
 
-bool OpensslWrap::signature_compute_id_digest_from_privkey (int curve_nid, const std::string privkey, const std::string idname, std::string &id_digest, const char *debug_flag )
+bool OpensslWrap::signature_compute_id_digest_from_privkey(int curve_nid, const QByteArray privkey, const QByteArray idname, int(*compute_id_digest)(const EVP_MD *, const char *, size_t, unsigned char *, size_t *, EC_KEY *), QByteArray &id_digest, const char *debug_flag)
 {
 	bool ifpubok;
 
-	QByteArray privkeyarray = QByteArray::fromStdString(privkey);
-	QByteArray pubkeyarray;
-	ifpubok = generate_pubkey_openssl_asymmetric(curve_nid, privkeyarray, pubkeyarray, debug_flag);
+	QByteArray pubkey;
+	ifpubok = generate_pubkey_openssl_asymmetric(curve_nid, privkey, pubkey, debug_flag);
 	if( !ifpubok )
 	{
 		printf("signature_compute_id_digest_from_privkey generate_pubkey_gmsm2 error!\n");
 		return false;
 	}
 
-	return signature_compute_id_digest_from_pubkey(curve_nid,pubkeyarray.toStdString(), idname, id_digest, debug_flag);
+	return signature_compute_id_digest_from_pubkey(curve_nid, pubkey, idname, compute_id_digest, id_digest, debug_flag);
 }
 
-bool OpensslWrap::signature_message_openssl_asymmetric( int curve_nid, const EVP_MD *md, const QByteArray msg_text, const QByteArray privkey, const QByteArray idname, QByteArray &sig_result, const char *debug_flag )
+bool OpensslWrap::signature_message_openssl_asymmetric(int curve_nid, const EVP_MD *md, const QByteArray msg_text, const QByteArray privkey, const QByteArray idname, int(*compute_id_digest)(const EVP_MD *, const char *, size_t, unsigned char *, size_t *, EC_KEY *), QByteArray &sig_result, const char *debug_flag)
 {
 	int ret;
 
@@ -667,13 +665,13 @@ bool OpensslWrap::signature_message_openssl_asymmetric( int curve_nid, const EVP
 		qDebug() << endl << "signature_message_openssl_asymmetric idname=" << endl << idname.toHex() << endl;
 	}
 
-	std::string id_digest;
+	QByteArray id_digest;
 	unsigned char *idname_data = (unsigned char *)idname.data();
 	int idname_len = idname.size();
 	if( idname_len > 0 )
 	{
 		bool ifidok;
-		ifidok = signature_compute_id_digest_from_privkey( curve_nid, privkey.toStdString(), idname.toStdString(), id_digest, debug_flag );
+		ifidok = signature_compute_id_digest_from_privkey( curve_nid, privkey, idname, compute_id_digest, id_digest, debug_flag );
 		if( !ifidok )
 		{
 			printf("signature_message_openssl_asymmetric signature_compute_id_digest_from_privkey error!\n");
@@ -775,7 +773,7 @@ bool OpensslWrap::signature_message_openssl_asymmetric( int curve_nid, const EVP
 
 	if( idname_len > 0 )
 	{
-		unsigned char *id_digest_data = (unsigned char *)id_digest.c_str();
+		unsigned char *id_digest_data = (unsigned char *)id_digest.data();
 		int id_digest_len = id_digest.size();
 
 		ret = EVP_SignUpdate(ctx,id_digest_data,id_digest_len);
@@ -827,7 +825,7 @@ bool OpensslWrap::signature_message_openssl_asymmetric( int curve_nid, const EVP
 	return true;	
 }
 
-bool OpensslWrap::verify_signature_openssl_asymmetric( int curve_nid, const EVP_MD *md, const QByteArray msg_text, const QByteArray sig_text, const QByteArray pubkey, const QByteArray idname, const char *debug_flag )
+bool OpensslWrap::verify_signature_openssl_asymmetric(int curve_nid, const EVP_MD *md, const QByteArray msg_text, const QByteArray sig_text, const QByteArray pubkey, const QByteArray idname, int(*compute_id_digest)(const EVP_MD *, const char *, size_t, unsigned char *, size_t *, EC_KEY *), const char *debug_flag)
 {
 	int ret;
 
@@ -839,13 +837,13 @@ bool OpensslWrap::verify_signature_openssl_asymmetric( int curve_nid, const EVP_
 		qDebug() << endl << "verify_signature_openssl_asymmetric idname=" << endl << idname.toHex() << endl;
 	}
 
-	std::string id_digest;
+	QByteArray id_digest;
 	unsigned char *idname_data = (unsigned char *)idname.data();
 	int idname_len = idname.size();
 	if( idname_len > 0 )
 	{
 		bool ifidok;
-		ifidok = signature_compute_id_digest_from_pubkey( curve_nid, pubkey.toStdString(), idname.toStdString(), id_digest, debug_flag );
+		ifidok = signature_compute_id_digest_from_pubkey( curve_nid, pubkey, idname, compute_id_digest, id_digest, debug_flag );
 		if( !ifidok )
 		{
 			printf("verify_signature_openssl_asymmetric signature_compute_id_digest_from_pubkey error!\n");
@@ -1002,7 +1000,7 @@ bool OpensslWrap::verify_signature_openssl_asymmetric( int curve_nid, const EVP_
 
 	if( idname_len > 0 )
 	{
-		unsigned char *id_digest_data = (unsigned char *)id_digest.c_str();
+		unsigned char *id_digest_data = (unsigned char *)id_digest.data();
 		int id_digest_len = id_digest.size();
 
 		ret = EVP_VerifyUpdate(ctx,id_digest_data,id_digest_len);
